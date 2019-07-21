@@ -14,8 +14,8 @@ Valid is defined as follows:
 - Block headers hash to a lower value than its difficulty
 - Blocks contain only valid Transactions
 - Transaction Inputs reference existing unspent Outputs
-- Input Public Keys hash to the unspent Output PubKeyHashes
-- Input Private Keys sign the unspent Output Transaction hashes
+- Input Public Keys hash to their referenced unspent Output PubKeyHashes
+- Input Signatures sign the Transaction they are contained in
 
 A Node is capable of creating Blocks by gathering Transactions from the mempool and hashing the Block header with a different nonce until the Block header hashes to a lower value than its difficulty. The Proof of Work to create a new valid Block should take approximately 10 seconds on average. When a new block is mined or when a new transaction is either created or heard about from another node, the block or transaction is shared to other peers. Nodes maintain a list of valid Transactions they hear about from Peers called the mempool. If a Transaction from the mempool is included in a newly discovered and validated Block, it is removed from the mempool.
 <br>
