@@ -27,6 +27,43 @@ import satokentestnet.util.Bytes;
 import satokentestnet.util.Keys;
 import satokentestnet.util.Strings;
 
+/**
+ * Better Privacy and Storage (BPS) Wallet What are the issues with the current
+ * Wallet class? (1) Large amounts of derived keys to search through causes slow
+ * loading times because each address must be derived and checked linearly
+ * incase funds have been received to a previously derived address. Deriving an
+ * address from a private key is an expensive operation (See {@link satokentestnet.crypto.ScalarMultiply#scalmult(java.security.spec.ECPoint, java.math.BigInteger)
+ * }). (2) Private keys are exposed in memory for the duration of the object's
+ * existence. This data persists in a {@link satokentestnet.struct.KeyData}
+ * object stored in an ArrayList. (3) Seed is exposed in memory for the duration
+ * of the object's existence. This data persists because it is necessary to
+ * derive keys.
+ *
+ * How should these issues be handled? (1) Serializing public key hashes will
+ * allow the wallet to choose which indeces need to be derived. The tradeoff of
+ * decreased loading times for increased storage space is favorable, as the
+ * storage necessary is negligible. This proposal increases the serialized data
+ * by 4 + 21*(num hashes) bytes; 4 bytes representing num hashes and 21 bytes
+ * for each hash. Keys only need to be derived when absolutely necessary. (2)
+ * Signing transactions and deriving new public keys temporarily exposes private
+ * keys in memory rather than persisting for the object's existence. (3) The
+ * extended private keys for receiving/change addresses must be known, and is
+ * technically the only private information that is necessary to store. The
+ * user's wallet file password (the derived AES key) will run through an HMAC
+ * with a new salt to derive a new AES key which will encrypt the extended
+ * private keys until a new private key needs to be derived. This provides
+ * obfuscation of the extended private key data, and prevents the need for the
+ * wallet file password to persist in memory.
+ *
+ * What new issues will be introduced? (1) Signing transactions and generating
+ * new receive/change addresses will take an insignificantly longer amount of
+ * time (a few milliseconds) per input. (2) Storage space increases 20 bytes
+ * more per key than before.
+ *
+ * Dependencies: {@link satokentestnet.struct.Address} and {@link Driver}
+ *
+ * @author Carson Mullins
+ */
 public class BPSWallet {
 
     public final byte[] version = ByteBuffer.allocate(4).putInt(1).array();
