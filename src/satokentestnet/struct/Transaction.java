@@ -2,7 +2,6 @@ package satokentestnet.struct;
 
 import java.nio.ByteBuffer;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Arrays;
@@ -56,17 +55,17 @@ public class Transaction {
      * Allows for consistent creation of Coinbase transactions.
      *
      * @param height the block height this transaction will be included in.
-     * @param minerPubKey the PublicKey object of the block's miner.
+     * @param minerPubKeyHash the PubKeyHash of the block's miner.
      * @param extraNonce the extranonce of the mined block.
      * @return a Transaction whose input matches the expected Coinbase
      * requirements and whose output is the expected block reward given to the
      * miner.
      */
-    public static Transaction getCoinbase(int height, PublicKey minerPubKey, int extraNonce) {
+    public static Transaction getCoinbase(int height, byte[] minerPubKeyHash, int extraNonce) {
         Transaction coinbase = new Transaction();
         TransactionInput input = TransactionInput.getCoinbaseInput(height, extraNonce);
-        long blockReward = Blockchain.getInstance().getBlockReward(height);
-        TransactionOutput output = new TransactionOutput(blockReward, minerPubKey);
+        long blockReward = (height != 1) ? Blockchain.getInstance().getBlockReward(height) : Blockchain.baseReward;
+        TransactionOutput output = new TransactionOutput(blockReward, minerPubKeyHash);
 
         coinbase.add(input, output);
         coinbase.hash = coinbase.calculateHash();

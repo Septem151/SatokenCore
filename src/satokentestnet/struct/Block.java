@@ -2,10 +2,8 @@ package satokentestnet.struct;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
-import satokentestnet.client.Driver;
 import satokentestnet.crypto.Hash;
 import satokentestnet.util.Bytes;
 import satokentestnet.util.Strings;
@@ -74,10 +72,10 @@ public class Block {
      *
      * @param minerPubKey the public key of the miner used for block reward.
      */
-    public void mine(PublicKey minerPubKey) {
+    public void mine(byte[] minerPubKeyHash) {
         nonce = 0;
         int extraNonce = 0;
-        transactions.add(Transaction.getCoinbase(height, minerPubKey, extraNonce));
+        transactions.add(Transaction.getCoinbase(height, minerPubKeyHash, extraNonce));
         merkleTree.add(transactions.get(0));
         for (Transaction transaction : Blockchain.getInstance().getMempool()) {
             transactions.add(transaction);
@@ -87,12 +85,12 @@ public class Block {
         BigInteger actual = new BigInteger(1, this.calculateHash());
         while (actual.compareTo(target) > 0) {
             if (nonce != 0 && nonce % 10000000 == 0) {
-                Driver.cli.print(".");
+                System.out.print(".");
             }
             if (nonce == 0xFFFFFFFF) {
                 nonce = 0;
                 extraNonce = -(~extraNonce);
-                transactions.set(0, Transaction.getCoinbase(height, minerPubKey, extraNonce));
+                transactions.set(0, Transaction.getCoinbase(height, minerPubKeyHash, extraNonce));
                 merkleTree.updateFirst(transactions.get(0));
             } else {
                 nonce = -(~nonce);

@@ -1,11 +1,8 @@
 package satokentestnet.struct;
 
 import java.nio.ByteBuffer;
-import java.security.PublicKey;
 import java.util.Arrays;
-import satokentestnet.crypto.Hash;
 import satokentestnet.util.Bytes;
-import satokentestnet.util.Keys;
 import satokentestnet.util.Strings;
 
 /**
@@ -37,20 +34,6 @@ public class TransactionOutput {
     }
 
     /**
-     * Secondary constructor for creating a TransactionOutput. This constructor
-     * is used by the wallet internally to create change transactions, since a
-     * PublicKey object is present ahead of time.
-     *
-     * @param value the amount of Satoken that this output holds.
-     * @param pubKey the recipient's PubKeyHash, whose spender must prove
-     * ownership of.
-     */
-    public TransactionOutput(long value, PublicKey pubKey) {
-        this.value = value;
-        this.pubKeyHash = Hash.hash160(Keys.toBytes(pubKey));
-    }
-
-    /**
      * @return the value of Satoken this output holds.
      */
     public long getValue() {
@@ -76,7 +59,8 @@ public class TransactionOutput {
      * Deserializes a byte representation of a TransactionOutput into an object.
      *
      * @param data the bytes of a serialized TransactionOutput.
-     * @return a TransactionOutput object whose serialization is equivalent to the data supplied.
+     * @return a TransactionOutput object whose serialization is equivalent to
+     * the data supplied.
      */
     public static TransactionOutput deserialize(byte[] data) {
         long value = ByteBuffer.wrap(Arrays.copyOfRange(data, 0, 8)).getLong();

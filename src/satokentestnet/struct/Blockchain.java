@@ -29,8 +29,8 @@ public class Blockchain {
     public static final byte[] baseDifficulty = Strings.toBytes("00000FFFFFFFFFFF");
     private byte[] difficulty = baseDifficulty;
     public static final long baseReward = 5000000000l;
-    public static final int halveningBlocks = 250;
-    public static final int difficultyAdjustBlocks = 10;
+    public static final int halveningBlocks = 210000;
+    public static final int difficultyAdjustBlocks = 2016;
     public static final long targetBlockTime = 10000;
     private ArrayList<Block> blocks;
     private final HashMap<String, TransactionOutput> chainstate;

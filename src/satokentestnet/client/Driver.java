@@ -5,8 +5,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.BufferedOutputStream;
-import java.io.PrintStream;
+import java.io.FileInputStream;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
@@ -30,6 +31,7 @@ import satokentestnet.util.Strings;
  * structures like chainstate and mempool, etc. Some elements are direct
  * implementations of bitcoin protocols, such as BIP32 (HD wallets) and BIP39
  * (mnemonic generation for deterministic keys).
+ *
  * @author Carso
  */
 public class Driver {
@@ -44,10 +46,9 @@ public class Driver {
     public static final String wordListURL = "https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt";
     public static boolean automine = false;
     public static int numAutomine = 5;
-    private static Wallet currentWallet = null;
+    private static BPSWallet currentWallet = null;
     private static File currentWalletFile = null;
     private static final Blockchain blockchain = Blockchain.getInstance();
-    public static final PrintStream cli = System.out;
     private static final Scanner userIn = new Scanner(System.in);
     private static final Console console = System.console();
 
@@ -62,84 +63,18 @@ public class Driver {
      */
     public static void main(String[] args) {
 
-        cli.print("Checking for Data directory.");
-        File folder = new File(dataDir);
-        if (!folder.exists()) {
-            cli.print(" Creating Data directory.");
-            folder.mkdirs();
-        }
-        cli.print(" OK\nChecking for Wallet directory.");
-        folder = new File(walletDir);
-        if (!folder.exists()) {
-            cli.print(" Creating Wallet directory.");
-            folder.mkdir();
-        }
-        cli.print(" OK\nChecking for Blocks file.");
-        File file = new File(blocksPath);
-        try {
-            if (!file.exists()) {
-                cli.print(" Creating Blocks file.");
-                file.createNewFile();
-            } else {
-                cli.print(" Loading Blocks file.");
-            }
-            byte[] data = Files.readAllBytes(file.toPath());
-            Blockchain.getInstance().deserializeBlocks(data);
-        } catch (IOException ex) {
-            System.out.println("Error reading/writing to blocks.dat file.");
-            System.exit(1);
-        }
-        cli.print(" OK\nChecking for State file.");
-        file = new File(statePath);
-        try {
-            if (!file.exists()) {
-                cli.print(" Creating State file.");
-                file.createNewFile();
-            } else {
-                cli.print(" Loading State file.");
-            }
-            byte[] data = Files.readAllBytes(file.toPath());
-            Blockchain.getInstance().deserializeState(data);
-        } catch (IOException ex) {
-            System.out.println("Error creating state.dat file.");
-            System.exit(1);
-        }
-        cli.print(" OK\nChecking for Word List file.");
-        try {
-            file = new File(wordListPath);
-            if (!file.exists()) {
-                cli.print(" Downloading Word List.");
-                file.createNewFile();
-                URL url = new URL(wordListURL);
-                ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
-                try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
-                    FileChannel fileChannel = fileOutputStream.getChannel();
-                    fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
-                }
-            }
-        } catch (IOException ex) {
-            System.out.println("Exception occurred.");
-            throw new RuntimeException(ex);
-        }
-        cli.println(" OK");
-        if (blockchain.getHeight() == 0) {
-            cli.print("Creating Genesis Block.");
-            blockchain.mineGenesisBlock();
-            cli.println(" OK\n");
-        }
-        pause(3000);
-        // Main Program Loop
+        initFilesAndFolders();
         boolean running = true;
         while (running) {
             clearScreen();
-            cli.println("\t\tMain Menu");
-            cli.println("Create, load, or recover a wallet.");
-            cli.println("[N] - New Wallet");
-            cli.println("[L] - Load Wallet");
-            cli.println("[R] - Recover Wallet");
-            cli.println("[Q] - Quit Satoken Core Client");
+            System.out.println("\t\tMain Menu");
+            System.out.println("Create, load, or recover a wallet.");
+            System.out.println("[N] - New Wallet");
+            System.out.println("[L] - Load Wallet");
+            System.out.println("[R] - Recover Wallet");
+            System.out.println("[Q] - Quit Satoken Core Client");
             String input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "N":
                     createWallet();
@@ -170,22 +105,20 @@ public class Driver {
      * @param password the wallet file's password. Necessary to pass as a
      * parameter to be able to encrypt the file after changing its data.
      */
-    private static void walletMenu(char[] password) {
-        // TODO: Is it secure to pass the password as a parameter and keep it 
-        // sitting in program memory for so long? There has to be a better way to handle this.
+    private static void walletMenu() {
         boolean running = true;
         while (running) {
             clearScreen();
             currentWallet.updateBalance();
-            cli.println("\t\tWallet Menu");
-            cli.println("          Balance: " + currentWallet.printBalance());
-            cli.println("Receiving Address: " + currentWallet.getReceiveAddress());
-            cli.println("[S] - Send Satoken");
-            cli.println("[M] - Mine Block");
-            cli.println("[O] - Options");
-            cli.println("[Q] - Exit Wallet");
+            System.out.println("\t\tWallet Menu");
+            System.out.println("          Balance: " + currentWallet.printBalance());
+            System.out.println("Receiving Address: " + currentWallet.getReceiveAddress());
+            System.out.println("[S] - Send Satoken");
+            System.out.println("[M] - Mine Block");
+            System.out.println("[O] - Options");
+            System.out.println("[Q] - Exit Wallet");
             String input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "S":
                     transactionMenu();
@@ -194,28 +127,28 @@ public class Driver {
                     int quantity = (automine) ? numAutomine : 1;
                     while (quantity > 0) {
                         currentWallet.updateBalance();
-                        cli.print("Mining " + quantity + " new Block" + (quantity > 1 ? "s" : "") + ".");
+                        System.out.print("Mining " + quantity + " new Block" + (quantity > 1 ? "s" : "") + ".");
                         Block block = new Block(blockchain.getLastBlock());
-                        block.mine(currentWallet.getReceivePubKey());
-                        cli.print(" Block Found.");
+                        block.mine(currentWallet.getReceivePubKeyHash());
+                        System.out.print(" Block Found.");
                         if (blockchain.writeBlockToDisk(block)) {
-                            cli.println(" Block Verified.\n");
+                            System.out.println(" Block Verified.\n");
                             pause(1000);
                         } else {
-                            cli.println(" Block Rejected.\n");
+                            System.out.println(" Block Rejected.\n");
                             pause(1000);
                             break;
                         }
                         if (quantity > 1) {
                             clearScreen();
                             currentWallet.updateBalance();
-                            cli.println("\t\tWallet Menu");
-                            cli.println("          Balance: " + currentWallet.printBalance());
-                            cli.println("Receiving Address: " + currentWallet.getReceiveAddress());
-                            cli.println("[S] - Send Satoken");
-                            cli.println("[M] - Mine Block");
-                            cli.println("[O] - Options");
-                            cli.println("[Q] - Exit Wallet\n");
+                            System.out.println("\t\tWallet Menu");
+                            System.out.println("          Balance: " + currentWallet.printBalance());
+                            System.out.println("Receiving Address: " + currentWallet.getReceiveAddress());
+                            System.out.println("[S] - Send Satoken");
+                            System.out.println("[M] - Mine Block");
+                            System.out.println("[O] - Options");
+                            System.out.println("[Q] - Exit Wallet\n");
                         }
                         quantity--;
                     }
@@ -230,15 +163,7 @@ public class Driver {
                     inputError(input);
             }
         }
-        try {
-            byte[] walletData = DataCipher.encryptData(currentWallet.serialize(), password);
-            try (BufferedOutputStream fOut = new BufferedOutputStream(new FileOutputStream(currentWalletFile, false))) {
-                fOut.write(walletData);
-            }
-        } catch (IOException ex) {
-            cli.println("Critical Error: Failed to save Wallet data upon closing.");
-            System.exit(1);
-        }
+        saveCurrentWalletToFile();
         currentWallet = null;
     }
 
@@ -252,20 +177,20 @@ public class Driver {
         String input = "";
         int numRecipients = 0;
         ArrayList<TransactionOutput> outputs = new ArrayList<>();
-        cli.println("\t\tCreate New Transaction");
+        System.out.println("\t\tCreate New Transaction");
         boolean proceed = false;
         while (!proceed) {
-            cli.println("Balance: " + currentWallet.printBalance());
-            cli.print("# of Recipients (Q to cancel): ");
+            System.out.println("Balance: " + currentWallet.printBalance());
+            System.out.print("# of Recipients (Q to cancel): ");
             try {
                 input = userIn.nextLine();
-                cli.println();
+                System.out.println();
                 if (input.equalsIgnoreCase("Q")) {
                     return;
                 }
                 numRecipients = Integer.parseInt(input);
                 if (numRecipients <= 0) {
-                    cli.println("Number of recipients must be larger than 0.\n");
+                    System.out.println("Number of recipients must be larger than 0.\n");
                 } else {
                     proceed = true;
                 }
@@ -280,18 +205,18 @@ public class Driver {
                 try {
                     byte[] pubKeyHash = new byte[0];
                     if (!validRecipient) {
-                        cli.print("Recipient " + (i + 1) + " (Q to cancel): ");
+                        System.out.print("Recipient " + (i + 1) + " (Q to cancel): ");
                         input = userIn.nextLine();
                         if (input.equalsIgnoreCase("Q")) {
-                            cli.println();
+                            System.out.println();
                             return;
                         }
                         pubKeyHash = Strings.decodeAddress(input);
                         validRecipient = true;
                     }
-                    cli.print("     Amount (Q to cancel): ");
+                    System.out.print("     Amount (Q to cancel): ");
                     input = userIn.nextLine();
-                    cli.println();
+                    System.out.println();
                     if (input.equalsIgnoreCase("Q")) {
                         return;
                     }
@@ -300,7 +225,7 @@ public class Driver {
                         throw new NumberFormatException();
                     } else if (digits.length == 2) {
                         if (digits[1].length() > 8) {
-                            cli.println("Too precise of a value. Max 8 decimal places.\n");
+                            System.out.println("Too precise of a value. Max 8 decimal places.\n");
                             continue;
                         }
                         digits[1] = String.format("%-8s", digits[1]).replace(' ', '0');
@@ -313,38 +238,62 @@ public class Driver {
                     proceed = true;
                 } catch (Exception ex) {
                     if (ex instanceof NumberFormatException) {
-                        cli.println(input + " is not a valid value.\n");
+                        System.out.println(input + " is not a valid value.\n");
                     } else {
-                        cli.println("\nNot a valid address.\n");
+                        System.out.println("\nNot a valid address.\n");
                     }
                 }
             }
         }
         proceed = false;
         while (!proceed) {
-            cli.println("Sign and Broadcast Transaction? (Y/N)");
+            System.out.println("Sign and Broadcast Transaction? (Y/N)");
             input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "Y":
                     proceed = true;
                     break;
                 case "N":
-                    cli.println("Transaction cancelled and discarded.\n");
+                    System.out.println("Transaction cancelled and discarded.\n");
                     pause(2000);
                     return;
                 default:
                     inputError(input);
             }
         }
-        Transaction transaction = currentWallet.buildTransaction(outputs);
+        byte[] encryptionFlag = new byte[1];
+        char[] password = new char[0];
+        Transaction transaction = null;
+        int attempts = 0;
+        while (attempts < 3) {
+            try {
+                FileInputStream fis = new FileInputStream(currentWalletFile);
+                fis.read(encryptionFlag);
+                fis.close();
+                if (encryptionFlag[0] == DataCipher.encryptionFlag) {
+                    System.out.print("Password: ");
+                    password = console.readPassword();
+                }
+                transaction = currentWallet.buildTransaction(outputs, password);
+                break;
+            } catch (IOException ex) {
+                System.out.println("Critical Error: Unable to read wallet file!");
+                System.exit(1);
+            } catch (InvalidPasswordException ex) {
+                System.out.println("Invalid password.\n");
+                attempts++;
+            }
+        }
         if (transaction != null) {
             // Verify Transaction
             if (!transaction.verify()) {
-                cli.println("Transaction did not verify.\n");
+                System.out.println("Transaction did not verify.\n");
             } else {
-                cli.println("Transaction added to mempool.\n");
+                System.out.println("Transaction added to mempool.\n");
             }
+        } else {
+            System.out.println("Transaction cancelled.\n");
         }
         pause(2000);
     }
@@ -358,24 +307,24 @@ public class Driver {
         boolean proceed = false;
         while (!proceed) {
             clearScreen();
-            cli.println("\t\tOptions Menu");
-            cli.println("Print information or adjust Mining settings.");
-            cli.println("[A] - Automine (" + (automine ? "ON, " + numAutomine + " Blocks" : "OFF") + ")");
-            cli.println("[G] - Generate More Keys");
-            cli.println("[B] - Print Recent Blocks");
-            cli.println("[C] - Print Chainstate");
-            cli.println("[M] - Print Mempool");
-            cli.println("[W] - Print Wallet");
-            cli.println("[Q] - Back to Wallet Menu");
+            System.out.println("\t\tOptions Menu");
+            System.out.println("Print information or adjust Mining settings.");
+            System.out.println("[A] - Automine (" + (automine ? "ON, " + numAutomine + " Blocks" : "OFF") + ")");
+            System.out.println("[G] - Generate More Keys");
+            System.out.println("[B] - Print Recent Blocks");
+            System.out.println("[C] - Print Chainstate");
+            System.out.println("[M] - Print Mempool");
+            System.out.println("[W] - Print Wallet");
+            System.out.println("[Q] - Back to Wallet Menu");
             String input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "A":
                     if (!automine) {
                         adjustAutomine();
                     } else {
                         automine = false;
-                        cli.println("Automine has been turned off.\n");
+                        System.out.println("Automine has been turned off.\n");
                         pause(1000);
                     }
                     break;
@@ -383,27 +332,27 @@ public class Driver {
                     genMoreKeys();
                     break;
                 case "B":
-                    cli.println("\t\tBlockchain (Current Height: " + blockchain.getHeight() + ")\n");
-                    cli.println(blockchain.toString());
-                    cli.print("Enter to continue");
+                    System.out.println("\t\tBlockchain (Current Height: " + blockchain.getHeight() + ")\n");
+                    System.out.println(blockchain.toString());
+                    System.out.print("Enter to continue");
                     userIn.nextLine();
                     break;
                 case "C":
-                    cli.println("\t\tChainstate (Size: " + blockchain.getChainstate().size() + ")\n");
-                    cli.println(blockchain.chainstateString());
-                    cli.print("Enter to continue");
+                    System.out.println("\t\tChainstate (Size: " + blockchain.getChainstate().size() + ")\n");
+                    System.out.println(blockchain.chainstateString());
+                    System.out.print("Enter to continue");
                     userIn.nextLine();
                     break;
                 case "M":
-                    cli.println("\t\tMempool (Size: " + blockchain.getMempool().size() + ")\n");
-                    cli.println(blockchain.mempoolString());
-                    cli.print("Enter to continue");
+                    System.out.println("\t\tMempool (Size: " + blockchain.getMempool().size() + ")\n");
+                    System.out.println(blockchain.mempoolString());
+                    System.out.print("Enter to continue");
                     userIn.nextLine();
                     break;
                 case "W":
-                    cli.println("\t\tWallet Data\n");
-                    cli.println(currentWallet.toString());
-                    cli.print("Enter to continue");
+                    System.out.println("\t\tWallet Data\n");
+                    System.out.println(currentWallet.toString());
+                    System.out.print("Enter to continue");
                     userIn.nextLine();
                     break;
                 case "Q":
@@ -420,29 +369,29 @@ public class Driver {
     private static void genMoreKeys() {
         clearScreen();
         while (true) {
-            cli.println("\t\tNew Keys Generation");
-            cli.println("WARNING: Too many keys will cause wallet load time to increase.");
-            cli.println("         It is recommended to switch wallets after ~200 keys.");
-            cli.print("# of Keys to generate (Q to cancel): ");
+            System.out.println("\t\tNew Keys Generation");
+            System.out.println("WARNING: Too many keys will cause wallet load time to increase.");
+            System.out.println("         It is recommended to switch wallets after ~200 keys.");
+            System.out.print("# of Keys to generate (Q to cancel): ");
             try {
                 String input = userIn.nextLine();
                 if (input.equalsIgnoreCase("Q")) {
                     return;
                 }
-                cli.println();
+                System.out.println();
                 int numKeys = Integer.parseInt(input);
                 if (numKeys <= 0) {
                     throw new NumberFormatException();
                 }
-                cli.print("Generating " + numKeys + " Keys.");
+                System.out.print("Generating " + numKeys + " Keys.");
                 for (int i = 0; i < numKeys; i++) {
                     currentWallet.genExternalKey();
                     currentWallet.genInternalKey();
                 }
-                cli.println(" OK\n");
+                System.out.println(" OK\n");
                 return;
             } catch (NumberFormatException ex) {
-                cli.println("Only positive, non-zero numbers are allowed.\n");
+                System.out.println("Only positive, non-zero numbers are allowed.\n");
             }
         }
     }
@@ -453,24 +402,24 @@ public class Driver {
     private static void adjustAutomine() {
         clearScreen();
         while (true) {
-            cli.println("\t\tAdjust Automine Blocks");
-            cli.print("# of Blocks to mine (Q to cancel): ");
+            System.out.println("\t\tAdjust Automine Blocks");
+            System.out.print("# of Blocks to mine (Q to cancel): ");
             try {
                 String input = userIn.nextLine();
                 if (input.equalsIgnoreCase("Q")) {
                     return;
                 }
-                cli.println();
+                System.out.println();
                 numAutomine = Integer.parseInt(input);
                 if (numAutomine <= 0) {
                     throw new NumberFormatException();
                 }
-                cli.println("Automine has been enabled.\n");
+                System.out.println("Automine has been enabled.\n");
                 automine = true;
                 pause(1000);
                 return;
             } catch (NumberFormatException ex) {
-                cli.println("Only positive, non-zero numbers are allowed.\n");
+                System.out.println("Only positive, non-zero numbers are allowed.\n");
                 pause(1000);
             }
         }
@@ -481,7 +430,7 @@ public class Driver {
      * on disk. User is prompted for the File Name, the wallet's passphrase
      * (optional) used for deriving keys, the wallet's derivation path
      * (optional) which will default to
-     * {@value satokentestnet.client.Wallet#defaultDerivation} if none is
+     * {@value satokentestnet.System.outent.Wallet#defaultDerivation} if none is
      * supplied, and the password for encrypting the File itself. The Wallet
      * created is then set as the Node's Wallet for spending and block rewards.
      * The wallet is stored on disk at {@value #walletDir}.
@@ -489,18 +438,18 @@ public class Driver {
     private static void createWallet() {
         String fileName = "";
         char[] passphrase = new char[0];
-        String derivationPath = Wallet.defaultDerivation;
+        String derivationPath = BPSWallet.defaultDerivation;
         char[] password = new char[0];
         boolean proceed;
         clearScreen();
-        cli.println("\t\tCreate A New Wallet");
+        System.out.println("\t\tCreate A New Wallet");
         fileName = "";
         boolean validFileName = false;
         while (!validFileName) {
-            cli.print("File Name: ");
+            System.out.print("File Name: ");
             fileName = userIn.nextLine();
             if (fileName.isEmpty()) {
-                cli.println("File name cannot be empty.\n");
+                System.out.println("File name cannot be empty.\n");
                 continue;
             }
             File[] walletFiles = getWalletFiles();
@@ -509,7 +458,7 @@ public class Driver {
             } else {
                 for (File file : walletFiles) {
                     if (file.getName().equalsIgnoreCase(fileName + ".dat")) {
-                        cli.println("File name already exists.\n");
+                        System.out.println("File name already exists.\n");
                         validFileName = false;
                         break;
                     } else {
@@ -521,7 +470,7 @@ public class Driver {
         proceed = false;
         boolean advanced = false;
         while (!proceed) {
-            cli.println("Advanced Options? (Y/N)");
+            System.out.println("Advanced Options? (Y/N)");
             String input = userIn.nextLine();
             switch (input.toUpperCase()) {
                 case "Y":
@@ -538,97 +487,88 @@ public class Driver {
         if (advanced) {
             proceed = false;
             while (!proceed) {
-                cli.print("Passphrase: ");
+                System.out.print("Passphrase: ");
                 passphrase = console.readPassword();
                 if (passphrase.length == 0) {
                     break;
                 }
-                cli.print("Re-enter Passphrase: ");
+                System.out.print("Re-enter Passphrase: ");
                 char[] temp = console.readPassword();
                 if (!Arrays.equals(passphrase, temp)) {
-                    cli.println("Passphrase entered does not match.\n");
+                    System.out.println("Passphrase entered does not match.\n");
                 } else {
                     proceed = true;
                 }
             }
             proceed = false;
             while (!proceed) {
-                cli.print("Derivation Path (ex: m/0'/0'): ");
+                System.out.print("Derivation Path (ex: m/0'/0'): ");
                 derivationPath = userIn.nextLine();
                 if (derivationPath.isEmpty()) {
-                    derivationPath = Wallet.defaultDerivation;
+                    derivationPath = BPSWallet.defaultDerivation;
                 }
-                proceed = Wallet.validateDerivation(derivationPath);
+                proceed = BPSWallet.validateDerivation(derivationPath);
                 if (!proceed) {
-                    cli.println("Derivation Path is not valid.\n");
+                    System.out.println("Derivation Path is not valid.\n");
                 }
             }
         }
         proceed = false;
         while (!proceed) {
-            cli.print("File Password: ");
+            System.out.print("File Password: ");
             password = console.readPassword();
             if (password.length == 0) {
                 break;
             } else if (!satisfyPasswordReqs(password)) {
-                cli.println("Password does not meet the requirements.");
-                cli.println("- At least 8 characters");
-                cli.println("- At least 1 uppercase letter");
-                cli.println("- At least 1 lowercase letter");
-                cli.println("- At least 1 number\n");
+                System.out.println("Password does not meet the requirements.");
+                System.out.println("- At least 8 characters");
+                System.out.println("- At least 1 uppercase letter");
+                System.out.println("- At least 1 lowercase letter");
+                System.out.println("- At least 1 number\n");
                 pause(1000);
                 continue;
             }
-            cli.print("Re-enter Password: ");
+            System.out.print("Re-enter Password: ");
             char[] temp = console.readPassword();
             if (!Arrays.equals(password, temp)) {
-                cli.println("Password entered does not match.\n");
+                System.out.println("Password entered does not match.\n");
             } else {
                 proceed = true;
             }
         }
         proceed = false;
         while (!proceed) {
-            cli.println("Create Wallet? (Y/N)");
+            System.out.println("Create Wallet? (Y/N)");
             String input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "Y":
                     proceed = true;
                     break;
                 case "N":
-                    cli.println("Wallet not created.\n");
+                    System.out.println("Wallet not created.\n");
                     return;
                 default:
                     inputError(input);
             }
         }
-        cli.print("Creating wallet.");
         File walletFile = new File(walletDir + fileName + ".dat");
         try {
             if (!walletFile.createNewFile()) {
                 throw new IOException();
             }
-            currentWallet = new Wallet(passphrase, derivationPath);
+            currentWallet = new BPSWallet(password, passphrase, derivationPath);
             currentWalletFile = walletFile;
-            byte[] walletData = currentWallet.serialize();
-            byte[] fileData = DataCipher.encryptData(walletData, password);
-            try (FileOutputStream fos = new FileOutputStream(walletFile.getAbsolutePath())) {
-                fos.write(fileData);
-            }
+            saveCurrentWalletToFile();
         } catch (IOException ex) {
-            cli.println("Error while creating Wallet File.");
-            cli.println("Wallet not created.\n");
+            System.out.println("Error while creating Wallet File.");
+            System.out.println("Wallet not created.\n");
             return;
         }
-        cli.println(" OK\n");
-        cli.println("Take note of your Recovery Seed:");
-        cli.println("WARNING! THIS WILL NOT BE SHOWN AGAIN.\n");
-        cli.println(new String(currentWallet.getMnemonic()) + "\n");
         pause(3000);
-        cli.print("Enter to continue");
+        System.out.print("Enter to continue");
         userIn.nextLine();
-        walletMenu(password);
+        walletMenu();
     }
 
     /**
@@ -645,31 +585,37 @@ public class Driver {
         File[] wallets = getWalletFiles();
         while (!valid) {
             clearScreen();
-            cli.println("\t\tLoad Existing Wallet");
+            System.out.println("\t\tLoad Existing Wallet");
             if (wallets.length == 0) {
-                cli.println("Wallets directory is empty!\n");
+                System.out.println("Wallets directory is empty!\n");
                 pause(1000);
                 return;
             }
             for (int i = 1; i <= wallets.length; i++) {
-                cli.println("[" + i + "] - " + wallets[i - 1].getName());
+                System.out.println("[" + i + "] - " + wallets[i - 1].getName());
             }
-            cli.println("[Q] - Back to Main Menu");
+            System.out.println("[Q] - Back to Main Menu");
             String selection = userIn.nextLine();
-            cli.println();
+            System.out.println();
             try {
                 index = Integer.parseInt(selection);
                 if (index > 0 && index <= wallets.length) {
                     File file = wallets[index - 1];
                     byte[] fileData = Files.readAllBytes(file.toPath());
                     if (fileData[0] == DataCipher.encryptionFlag) {
-                        cli.print("Password: ");
+                        System.out.print("Password: ");
                         password = console.readPassword();
                     }
-                    byte[] walletData = DataCipher.decryptData(fileData, password);
-                    cli.print("Loading Wallet.");
-                    currentWallet = Wallet.deserialize(walletData);
                     currentWalletFile = wallets[index - 1];
+                    switch (ByteBuffer.wrap(Arrays.copyOfRange(fileData, 0, 4)).getInt()) {
+                        case 1:
+                            currentWallet = new BPSWallet(fileData, password);
+                            break;
+                        default:
+                            System.out.println("Converting Legacy Wallet to BPSWallet.");
+                            currentWallet = BPSWallet.convertLegacyToBPS(fileData, password);
+                            saveCurrentWalletToFile();
+                    }
                     valid = true;
                 } else {
                     inputError(selection);
@@ -681,15 +627,15 @@ public class Driver {
                     inputError(selection);
                 }
             } catch (IOException ex) {
-                cli.println("Error loading wallet file.");
+                System.out.println("Error loading wallet file.");
                 System.exit(1);
             } catch (InvalidPasswordException ex) {
-                cli.println("Invalid password.\n");
+                System.out.println("Invalid password.\n");
+                pause(1500);
             }
         }
-        cli.println(" OK");
-        cli.println();
-        walletMenu(password);
+        pause(1000);
+        walletMenu();
     }
 
     /**
@@ -701,12 +647,12 @@ public class Driver {
     private static void recoverWallet() {
         char[] mnemonic;
         char[] passphrase = new char[0];
-        String derivationPath = Wallet.defaultDerivation;
+        String derivationPath = BPSWallet.defaultDerivation;
         String fileName = "";
         char[] password = new char[0];
         clearScreen();
-        cli.println("\t\tRecover A Wallet");
-        cli.print("Seed Phrase (Q to cancel): ");
+        System.out.println("\t\tRecover A Wallet");
+        System.out.print("Seed Phrase (Q to cancel): ");
         String input = userIn.nextLine();
         if (input.equalsIgnoreCase("Q")) {
             return;
@@ -715,7 +661,7 @@ public class Driver {
         boolean proceed = false;
         boolean advanced = false;
         while (!proceed) {
-            cli.println("Advanced Options? (Y/N)");
+            System.out.println("Advanced Options? (Y/N)");
             input = userIn.nextLine();
             switch (input.toUpperCase()) {
                 case "Y":
@@ -732,38 +678,38 @@ public class Driver {
         if (advanced) {
             proceed = false;
             while (!proceed) {
-                cli.print("Passphrase: ");
+                System.out.print("Passphrase: ");
                 passphrase = console.readPassword();
                 if (passphrase.length == 0) {
                     break;
                 }
-                cli.print("Re-enter Passphrase: ");
+                System.out.print("Re-enter Passphrase: ");
                 char[] temp = console.readPassword();
                 if (!Arrays.equals(passphrase, temp)) {
-                    cli.println("Passphrase entered does not match.\n");
+                    System.out.println("Passphrase entered does not match.\n");
                 } else {
                     proceed = true;
                 }
             }
             proceed = false;
             while (!proceed) {
-                cli.print("Derivation Path (ex: m/0'/0'): ");
+                System.out.print("Derivation Path (ex: m/0'/0'): ");
                 derivationPath = userIn.nextLine();
                 if (derivationPath.isEmpty()) {
-                    derivationPath = Wallet.defaultDerivation;
+                    derivationPath = BPSWallet.defaultDerivation;
                 }
-                proceed = Wallet.validateDerivation(derivationPath);
+                proceed = BPSWallet.validateDerivation(derivationPath);
                 if (!proceed) {
-                    cli.println("Derivation Path is not valid.\n");
+                    System.out.println("Derivation Path is not valid.\n");
                 }
             }
         }
         boolean validFileName = false;
         while (!validFileName) {
-            cli.print("File Name: ");
+            System.out.print("File Name: ");
             fileName = userIn.nextLine();
             if (fileName.isEmpty()) {
-                cli.println("File name cannot be empty.\n");
+                System.out.println("File name cannot be empty.\n");
                 continue;
             }
             File[] walletFiles = getWalletFiles();
@@ -772,7 +718,7 @@ public class Driver {
             } else {
                 for (File file : walletFiles) {
                     if (file.getName().equalsIgnoreCase(fileName + ".dat")) {
-                        cli.println("File name already exists.\n");
+                        System.out.println("File name already exists.\n");
                         validFileName = false;
                         break;
                     } else {
@@ -783,38 +729,38 @@ public class Driver {
         }
         proceed = false;
         while (!proceed) {
-            cli.print("File Password: ");
+            System.out.print("File Password: ");
             password = console.readPassword();
             if (password.length == 0) {
                 break;
             } else if (!satisfyPasswordReqs(password)) {
-                cli.println("Password does not meet the requirements.");
-                cli.println("- At least 8 characters");
-                cli.println("- At least 1 uppercase letter");
-                cli.println("- At least 1 lowercase letter");
-                cli.println("- At least 1 number\n");
+                System.out.println("Password does not meet the requirements.");
+                System.out.println("- At least 8 characters");
+                System.out.println("- At least 1 uppercase letter");
+                System.out.println("- At least 1 lowercase letter");
+                System.out.println("- At least 1 number\n");
                 pause(1000);
                 continue;
             }
-            cli.print("Re-enter Password: ");
+            System.out.print("Re-enter Password: ");
             char[] temp = console.readPassword();
             if (!Arrays.equals(password, temp)) {
-                cli.println("Password entered does not match.\n");
+                System.out.println("Password entered does not match.\n");
             } else {
                 proceed = true;
             }
         }
         proceed = false;
         while (!proceed) {
-            cli.println("Create Wallet? (Y/N)");
+            System.out.println("Create Wallet? (Y/N)");
             input = userIn.nextLine();
-            cli.println();
+            System.out.println();
             switch (input.toUpperCase()) {
                 case "Y":
                     proceed = true;
                     break;
                 case "N":
-                    cli.println("Wallet not created.\n");
+                    System.out.println("Wallet not created.\n");
                     return;
                 default:
                     inputError(input);
@@ -825,20 +771,33 @@ public class Driver {
             if (!walletFile.createNewFile()) {
                 throw new IOException();
             }
-            currentWallet = new Wallet(mnemonic, passphrase, derivationPath);
+            currentWallet = new BPSWallet(password, passphrase, mnemonic, derivationPath);
             currentWalletFile = walletFile;
-            byte[] walletData = currentWallet.serialize();
-            byte[] fileData = DataCipher.encryptData(walletData, password);
-            try (FileOutputStream fos = new FileOutputStream(walletFile.getAbsolutePath())) {
-                fos.write(fileData);
-            }
+            saveCurrentWalletToFile();
         } catch (IOException ex) {
-            cli.println("Error while creating Wallet File.");
-            cli.println("Wallet not created.\n");
+            System.out.println("Error while creating Wallet File.");
+            System.out.println("Wallet not created.\n");
             pause(2000);
             return;
         }
-        walletMenu(password);
+        walletMenu();
+    }
+
+    private static void saveCurrentWalletToFile() {
+        byte[] version = currentWallet.version;
+        byte[] flag = currentWallet.getEncryptionFlag();
+        byte[] pubKey = currentWallet.getOwnerPubKey();
+        byte[] salt = currentWallet.getOwnerSalt();
+        byte[] data = currentWallet.serialize();
+        byte[] encryptedData = DataCipher.ECIESencrypt(version, data, pubKey, flag, salt);
+        try {
+            BufferedOutputStream fOut = new BufferedOutputStream(new FileOutputStream(currentWalletFile, false));
+            fOut.write(encryptedData);
+            fOut.close();
+        } catch (IOException ex) {
+            System.out.println("Critical Error: Failed to save Wallet data upon closing.");
+            System.exit(1);
+        }
     }
 
     /**
@@ -849,18 +808,87 @@ public class Driver {
      * remove entries between blocks.
      */
     private static void saveAndQuit() {
-        cli.print("Saving chainstate.");
+        System.out.print("Saving chainstate.");
         byte[] stateData = Blockchain.getInstance().serializeState();
         try {
             File file = new File(statePath);
             try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(file))) {
                 fos.write(stateData);
             }
-            cli.println(" OK");
+            System.out.println(" OK");
         } catch (IOException ex) {
             System.out.println("Error saving data to file.");
             System.exit(1);
         }
+    }
+
+    private static void initFilesAndFolders() {
+        System.out.print("Checking for Data directory.");
+        File folder = new File(dataDir);
+        if (!folder.exists()) {
+            System.out.print(" Creating Data directory.");
+            folder.mkdirs();
+        }
+        System.out.print(" OK\nChecking for Wallet directory.");
+        folder = new File(walletDir);
+        if (!folder.exists()) {
+            System.out.print(" Creating Wallet directory.");
+            folder.mkdir();
+        }
+        System.out.print(" OK\nChecking for Blocks file.");
+        File file = new File(blocksPath);
+        try {
+            if (!file.exists()) {
+                System.out.print(" Creating Blocks file.");
+                file.createNewFile();
+            } else {
+                System.out.print(" Loading Blocks file.");
+            }
+            byte[] data = Files.readAllBytes(file.toPath());
+            Blockchain.getInstance().deserializeBlocks(data);
+        } catch (IOException ex) {
+            System.out.println("Error reading/writing to blocks.dat file.");
+            System.exit(1);
+        }
+        System.out.print(" OK\nChecking for State file.");
+        file = new File(statePath);
+        try {
+            if (!file.exists()) {
+                System.out.print(" Creating State file.");
+                file.createNewFile();
+            } else {
+                System.out.print(" Loading State file.");
+            }
+            byte[] data = Files.readAllBytes(file.toPath());
+            Blockchain.getInstance().deserializeState(data);
+        } catch (IOException ex) {
+            System.out.println("Error creating state.dat file.");
+            System.exit(1);
+        }
+        System.out.print(" OK\nChecking for Word List file.");
+        try {
+            file = new File(wordListPath);
+            if (!file.exists()) {
+                System.out.print(" Downloading Word List.");
+                file.createNewFile();
+                URL url = new URL(wordListURL);
+                ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+                FileOutputStream fileOutputStream = new FileOutputStream(file);
+                FileChannel fileChannel = fileOutputStream.getChannel();
+                fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+                fileOutputStream.close();
+            }
+        } catch (IOException ex) {
+            System.out.println("Exception occurred.");
+            throw new RuntimeException(ex);
+        }
+        System.out.println(" OK");
+        if (blockchain.getHeight() == 0) {
+            System.out.print("Creating Genesis Block.");
+            blockchain.mineGenesisBlock();
+            System.out.println(" OK\n");
+        }
+        pause(3000);
     }
 
     /**
@@ -869,7 +897,7 @@ public class Driver {
      * @param input the {@code String} command that was attempted.
      */
     public static void inputError(String input) {
-        cli.println(input + " is not recognized as a valid command.");
+        System.out.println(input + " is not recognized as a valid command.");
         pause(1000);
     }
 
@@ -907,7 +935,7 @@ public class Driver {
         try {
             Thread.sleep(milliseconds);
         } catch (InterruptedException e) {
-            cli.println("Exception while sleeping thread.");
+            System.out.println("Exception while sleeping thread.");
         }
     }
 
@@ -924,12 +952,12 @@ public class Driver {
             try {
                 new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
             } catch (IOException | InterruptedException ex) {
-                cli.println("Exception while clearing screen.");
+                System.out.println("Exception while clearing screen.");
             }
         }
-        cli.println("################################################################################");
-        cli.println("                         SATOKEN CORE CLIENT v0.1 Alpha");
-        cli.println("################################################################################\n");
+        System.out.println("################################################################################");
+        System.out.println("                         SATOKEN CORE CLIENT v0.1 Alpha");
+        System.out.println("################################################################################\n");
     }
 
 }
