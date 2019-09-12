@@ -387,10 +387,10 @@ public class BPSWallet {
             int index = -1;
             try {
                 if (levels[i].contains("'")) {
-                    Integer.parseInt(levels[i].substring(0, levels[i].length() - 1));
+                    index = Integer.parseInt(levels[i].substring(0, levels[i].length() - 1));
                     hardened = true;
                 } else {
-                    Integer.parseInt(levels[i]);
+                    index = Integer.parseInt(levels[i]);
                 }
             } catch (NumberFormatException ex) {
                 System.out.println("Invalid Derivation Path, unable to proceed.");
