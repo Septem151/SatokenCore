@@ -103,7 +103,7 @@ public class BPSWallet {
         genUserKey(password);
         System.out.println(" OK\n");
         System.out.println("Take note of your Recovery Seed:");
-        System.out.println("WARNING! THIS WILL NOT BE SHOWN AGAIN.\n");
+        System.out.println("WARNING! THIS WILL NOT BE SHOWN AGAIN, EVER.\n");
         System.out.println(new String(mnemonic) + "\n");
     }
 
@@ -158,63 +158,6 @@ public class BPSWallet {
         xprvsEncrypted = Arrays.copyOfRange(data, offset, data.length);
         genUserKey(password);
         System.out.println(" OK\n");
-    }
-
-    /**
-     * Converts a LegacyWallet's encrypted file data into a BPSWallet object.
-     *
-     * @param encryptedData the LegacyWallet's encrypted file data.
-     * @param password the file's password.
-     * @return a BPSWallet object whose data matches that of the LegacyWallet.
-     * @throws InvalidPasswordException if the password supplied does not match
-     * the file's password.
-     */
-    public static BPSWallet convertLegacyToBPS(byte[] encryptedData, char[] password) throws InvalidPasswordException {
-        byte[] data = DataCipher.decryptData(encryptedData, password);
-        int offset = 0;
-        int mnemonicLength = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
-        offset += 4;
-        String mnemonic = new String(Arrays.copyOfRange(data, offset, offset + mnemonicLength),
-                StandardCharsets.UTF_8);
-        offset += mnemonicLength;
-        int passphraseLength = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
-        offset += 4;
-        String passphrase = new String(Arrays.copyOfRange(data, offset, offset + passphraseLength),
-                StandardCharsets.UTF_8);
-        offset += passphraseLength;
-        int derivationLength = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
-        offset += 4;
-        String derivationPath = new String(Arrays.copyOfRange(data, offset, offset + derivationLength),
-                StandardCharsets.UTF_8);
-        offset += derivationLength;
-        int numKeysInternal = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
-        offset += 4;
-        boolean[] seenInternal = new boolean[numKeysInternal];
-        System.out.println("Num internal: " + numKeysInternal);
-        for (int i = 0; i < seenInternal.length; i++) {
-            seenInternal[i] = (data[offset++] == 0x01);
-        }
-        int numKeysExternal = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
-        offset += 4;
-        boolean[] seenExternal = new boolean[numKeysExternal];
-        System.out.println("Num external: " + numKeysExternal);
-        for (int i = 0; i < seenExternal.length; i++) {
-            seenExternal[i] = (data[offset++] == 0x01);
-        }
-        BPSWallet wallet = new BPSWallet(password, passphrase.toCharArray(), mnemonic.toCharArray(), derivationPath);
-        for (int i = wallet.externalAddresses.size(); i < seenExternal.length; i++) {
-            wallet.genExternalKey();
-            if (seenExternal[i]) {
-                wallet.externalAddresses.get(i).seen();
-            }
-        }
-        for (int i = wallet.internalAddresses.size(); i < seenInternal.length; i++) {
-            wallet.genInternalKey();
-            if (seenInternal[i]) {
-                wallet.internalAddresses.get(i).seen();
-            }
-        }
-        return wallet;
     }
 
     /**

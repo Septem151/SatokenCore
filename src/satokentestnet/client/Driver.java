@@ -262,7 +262,7 @@ public class Driver {
                     inputError(input);
             }
         }
-        byte[] encryptionFlag = new byte[1];
+        byte[] encryptionFlag = new byte[5];
         char[] password = new char[0];
         Transaction transaction = null;
         int attempts = 0;
@@ -271,7 +271,7 @@ public class Driver {
                 FileInputStream fis = new FileInputStream(currentWalletFile);
                 fis.read(encryptionFlag);
                 fis.close();
-                if (encryptionFlag[0] == DataCipher.encryptionFlag) {
+                if (encryptionFlag[4] == DataCipher.encryptionFlag) {
                     System.out.print("Password: ");
                     password = console.readPassword();
                 }
@@ -602,7 +602,7 @@ public class Driver {
                 if (index > 0 && index <= wallets.length) {
                     File file = wallets[index - 1];
                     byte[] fileData = Files.readAllBytes(file.toPath());
-                    if (fileData[0] == DataCipher.encryptionFlag) {
+                    if (fileData[4] == DataCipher.encryptionFlag) {
                         System.out.print("Password: ");
                         password = console.readPassword();
                     }
@@ -612,9 +612,9 @@ public class Driver {
                             currentWallet = new BPSWallet(fileData, password);
                             break;
                         default:
-                            System.out.println("Converting Legacy Wallet to BPSWallet.");
-                            currentWallet = BPSWallet.convertLegacyToBPS(fileData, password);
-                            saveCurrentWalletToFile();
+                            System.out.println("Unknown Wallet Format!");
+                            pause(1500);
+                            return;
                     }
                     valid = true;
                 } else {
