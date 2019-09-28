@@ -52,7 +52,7 @@ public class ScalarMultiply {
      * @param s the second point.
      * @return the ECPoint where out = r + s.
      */
-    private static ECPoint addPoint(ECPoint r, ECPoint s) {
+    public static ECPoint addPoint(ECPoint r, ECPoint s) {
         if (r.equals(s)) {
             return doublePoint(r);
         } else if (r.equals(ECPoint.POINT_INFINITY)) {

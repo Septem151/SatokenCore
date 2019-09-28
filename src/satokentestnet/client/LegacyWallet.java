@@ -32,7 +32,7 @@ import satokentestnet.util.Strings;
  *
  * @author Carson Mullins
  */
-public class Wallet {
+public class LegacyWallet {
 
     public static final String defaultDerivation = "m/0'/0'";
     public static final int keyLookAhead = 3;
@@ -56,7 +56,7 @@ public class Wallet {
      * @param derivationPath the hierarchical path to take when deriving
      * addresses.
      */
-    Wallet(char[] passphrase, String derivationPath) {
+    LegacyWallet(char[] passphrase, String derivationPath) {
         this.passphrase = passphrase;
         this.derivationPath = derivationPath;
         mnemonic = generateMnemonic();
@@ -76,7 +76,7 @@ public class Wallet {
      * @param derivationPath the derivation path that the keys will be derived
      * from.
      */
-    Wallet(char[] mnemonic, char[] passphrase, String derivationPath) {
+    LegacyWallet(char[] mnemonic, char[] passphrase, String derivationPath) {
         this.mnemonic = mnemonic;
         this.passphrase = passphrase;
         this.derivationPath = derivationPath;
@@ -306,7 +306,7 @@ public class Wallet {
         }
         // Check if wallet balance is enough
         if (totalValue > this.getBalance()) {
-            Driver.cli.println("\nNot enough funds to create Transaction.\n");
+            System.out.println("\nNot enough funds to create Transaction.\n");
             return null;
         }
         // Create Inputs from local UTXOs
@@ -328,7 +328,7 @@ public class Wallet {
             totalValue -= entry.getValue().getValue();
             // Create change TransactionOutput if necessary
             if (totalValue < 0) {
-                TransactionOutput change = new TransactionOutput(-1 * totalValue, this.getChangePubKey());
+                TransactionOutput change = new TransactionOutput(-1 * totalValue, this.getChangePubKeyHash());
                 transaction.add(change);
                 break;
             } else if (totalValue == 0) {
@@ -374,14 +374,14 @@ public class Wallet {
      * @return The next unseen receive pubKey from Internal keys. If there is no
      * unseen keys present, a new key is generated.
      */
-    public PublicKey getChangePubKey() {
+    public byte[] getChangePubKeyHash() {
         for (int i = 0; i < internalKeys.size(); i++) {
             KeyData key = internalKeys.get(i);
             if (!key.seen) {
-                return key.pubKey;
+                return key.pubKeyHash;
             }
         }
-        return genInternalKey().pubKey;
+        return genInternalKey().pubKeyHash;
     }
 
     /**
@@ -392,10 +392,31 @@ public class Wallet {
     }
 
     /**
+     * @return the wallet's passphrase.
+     */
+    public char[] getPassphrase() {
+        return passphrase;
+    }
+
+    /**
      * @return the wallet's derivation path.
      */
     public String getDerivationPath() {
         return derivationPath;
+    }
+
+    /**
+     * @return the amount of external keys this wallet has stored.
+     */
+    public int getNumExternalKeys() {
+        return externalKeys.size();
+    }
+
+    /**
+     * @return the amount of internal keys this wallet has stored.
+     */
+    public int getNumInternalKeys() {
+        return internalKeys.size();
     }
 
     /**
@@ -469,7 +490,7 @@ public class Wallet {
      * @return a Wallet object whose serialization is equivalent to the data
      * supplied.
      */
-    public static Wallet deserialize(byte[] data) {
+    public static LegacyWallet deserialize(byte[] data) {
         int offset = 0;
         int mnemonicLength = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
         offset += 4;
@@ -486,7 +507,7 @@ public class Wallet {
         String derivationPath = new String(Arrays.copyOfRange(data, offset, offset + derivationLength),
                 StandardCharsets.UTF_8);
         offset += derivationLength;
-        Wallet wallet = new Wallet(mnemonic.toCharArray(), passphrase.toCharArray(), derivationPath);
+        LegacyWallet wallet = new LegacyWallet(mnemonic.toCharArray(), passphrase.toCharArray(), derivationPath);
         int numKeysInternal = ByteBuffer.wrap(Arrays.copyOfRange(data, offset, offset + 4)).getInt();
         offset += 4;
         for (int i = wallet.internalKeys.size(); i < numKeysInternal; i++) {

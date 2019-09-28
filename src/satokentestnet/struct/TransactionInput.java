@@ -158,9 +158,10 @@ public class TransactionInput {
      */
     @Override
     public String toString() {
-        String res = "    Transaction: " + Bytes.toHex(refTx) + "\n";
-        res += "         Output: " + txOI + "\n";
-        res += "     Public Key: " + Bytes.toHex(pubKey) + "\n";
+        String res = "Ref Transaction: " + Bytes.toHex(refTx) + "\n";
+        res += "   Output Index: " + txOI + "\n";
+        String pubKeyStr = Bytes.toHex(pubKey);
+        res += "     Public Key: " + (pubKeyStr.length() != 0 ? pubKeyStr : "COINBASE TXN") + "\n";
         res += "      Signature: " + Bytes.toHex(sig) + "\n";
         return res;
     }
