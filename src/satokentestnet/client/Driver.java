@@ -956,7 +956,7 @@ public class Driver {
             }
         }
         System.out.println("################################################################################");
-        System.out.println("                         SATOKEN CORE CLIENT v0.1 Alpha");
+        System.out.println("                        SATOKEN CORE CLIENT v0.1.1 Alpha");
         System.out.println("################################################################################\n");
     }
 
