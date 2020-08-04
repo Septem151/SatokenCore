@@ -37,8 +37,8 @@ import satokentestnet.util.Strings;
 public class Driver {
 
     public static final String rootDir = (System.getProperty("os.name").startsWith("Windows")
-            ? System.getenv("SystemDrive") + "/" : "/");
-    public static final String dataDir = rootDir + "SatokenCore/testnet/";
+            ? System.getenv("SystemDrive") + "/SatokenCore/" : System.getProperty("user.home") + "/.satokencore/");
+    public static final String dataDir = rootDir + "testnet/";
     public static final String walletDir = dataDir + "wallets/";
     public static final String wordListPath = dataDir + "WordList.txt";
     public static final String blocksPath = dataDir + "blocks.dat";
